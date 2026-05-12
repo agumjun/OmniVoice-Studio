@@ -15,7 +15,7 @@
  */
 import React, { useState, useCallback, useRef } from 'react';
 import { Plus, Play, Trash2, GripVertical, BookOpen, Mic, Download, Scissors, Pause as PauseIcon, Users } from 'lucide-react';
-import { Button, Menu } from '@/ui';
+import { Button, Menu } from '../ui';
 import { parseStoryText, hasStoryMarkers, applyInlineVoice } from '../utils/storyTokens';
 import './StoriesEditor.css';
 
