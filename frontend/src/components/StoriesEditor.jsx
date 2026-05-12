@@ -14,8 +14,9 @@
  *   />
  */
 import React, { useState, useCallback, useRef } from 'react';
-import { Plus, Play, Trash2, GripVertical, BookOpen, Mic, Download, Scissors, Pause as PauseIcon } from 'lucide-react';
-import { Button } from '@/ui';
+import { Plus, Play, Trash2, GripVertical, BookOpen, Mic, Download, Scissors, Pause as PauseIcon, Users } from 'lucide-react';
+import { Button, Menu } from '@/ui';
+import { parseStoryText, hasStoryMarkers, applyInlineVoice } from '../utils/storyTokens';
 import './StoriesEditor.css';
 
 // Sentence-aware splitter for the "Paste & auto-split" panel. Walks the
@@ -97,6 +98,18 @@ export default function StoriesEditor({ profiles = [], onGenerate }) {
     setSplitOpen(false);
   }, [splitText, splitMax]);
 
+  const setVoiceForSelection = useCallback((trackId, voiceId) => {
+    const el = trackTextRefs.current.get(trackId);
+    const start = el?.selectionStart;
+    const end = el?.selectionEnd;
+    setTracks(prev => prev.map(t => {
+      if (t.id !== trackId) return t;
+      const safeStart = start != null ? start : t.text.length;
+      const safeEnd = end != null ? end : safeStart;
+      return { ...t, text: applyInlineVoice(t.text, safeStart, safeEnd, voiceId) };
+    }));
+  }, []);
+
   const insertPauseInto = useCallback((trackId) => {
     const el = trackTextRefs.current.get(trackId);
     const token = '[pause 0.5s]';
@@ -131,44 +144,79 @@ export default function StoriesEditor({ profiles = [], onGenerate }) {
     );
   }, []);
 
-  const previewTrack = useCallback(async (track) => {
-    if (!track.text.trim()) return;
-    setTracks(prev =>
-      prev.map(t => t.id === track.id ? { ...t, generating: true } : t)
-    );
+  const fetchChunkAudio = useCallback(async (text, profileId) => {
+    const res = await fetch('/api/dub/preview-segment/__stories__', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, profile_id: profileId || null, speed: 1.0 }),
+    });
+    if (!res.ok) throw new Error(`Preview HTTP ${res.status}`);
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }, []);
 
-    try {
-      const body = {
-        text: track.text,
-        profile_id: track.profileId || null,
-        speed: 1.0,
-      };
-      // Use the preview-segment endpoint for quick generation
-      const res = await fetch(`/api/dub/preview-segment/__stories__`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        setTracks(prev =>
-          prev.map(t => t.id === track.id ? { ...t, audioUrl: url, generating: false } : t)
-        );
-        // Auto-play
+  const previewTrack = useCallback(async (track) => {
+    const raw = (track.text || '').trim();
+    if (!raw) return;
+    setTracks(prev => prev.map(t => t.id === track.id ? { ...t, generating: true } : t));
+
+    // Simple path — no inline markers, keep the original single-shot behaviour
+    // so the user gets a reusable audioUrl on the track for replay.
+    if (!hasStoryMarkers(raw)) {
+      try {
+        const url = await fetchChunkAudio(raw, track.profileId);
+        setTracks(prev => prev.map(t => t.id === track.id ? { ...t, audioUrl: url, generating: false } : t));
         const audio = new Audio(url);
         audio.play().catch(() => {});
-      } else {
-        setTracks(prev =>
-          prev.map(t => t.id === track.id ? { ...t, generating: false } : t)
-        );
+      } catch (err) {
+        console.warn('Stories preview failed:', err);
+        setTracks(prev => prev.map(t => t.id === track.id ? { ...t, generating: false } : t));
       }
-    } catch {
-      setTracks(prev =>
-        prev.map(t => t.id === track.id ? { ...t, generating: false } : t)
-      );
+      return;
     }
-  }, []);
+
+    // Marker path — split into chunks + pauses, fetch chunks in parallel,
+    // play them in order with timed silences. We don't store a single
+    // audioUrl on the track in this path because there isn't one; pressing
+    // preview again regenerates (cheap enough for short stories).
+    const parsed = parseStoryText(raw, track.profileId);
+    try {
+      const audioUrls = await Promise.all(
+        parsed.map(seg => seg.type === 'chunk' ? fetchChunkAudio(seg.text, seg.profileId) : Promise.resolve(null))
+      );
+      let cursor = 0;
+      const finish = () => {
+        // Release any URLs we didn't get to (e.g. an error mid-playback).
+        for (let i = cursor; i < audioUrls.length; i++) {
+          if (audioUrls[i]) URL.revokeObjectURL(audioUrls[i]);
+        }
+        setTracks(prev => prev.map(t => t.id === track.id ? { ...t, generating: false, audioUrl: null } : t));
+      };
+      const step = () => {
+        while (cursor < parsed.length) {
+          const seg = parsed[cursor];
+          const url = audioUrls[cursor];
+          cursor++;
+          if (seg.type === 'pause') {
+            setTimeout(step, seg.seconds * 1000);
+            return;
+          }
+          if (seg.type === 'chunk' && url) {
+            const audio = new Audio(url);
+            audio.onended = () => { URL.revokeObjectURL(url); step(); };
+            audio.onerror = () => { URL.revokeObjectURL(url); step(); };
+            audio.play().catch(() => { URL.revokeObjectURL(url); step(); });
+            return;
+          }
+        }
+        finish();
+      };
+      step();
+    } catch (err) {
+      console.warn('Stories chained preview failed:', err);
+      setTracks(prev => prev.map(t => t.id === track.id ? { ...t, generating: false } : t));
+    }
+  }, [fetchChunkAudio]);
 
   const generateAll = useCallback(() => {
     if (onGenerate) {
@@ -325,6 +373,29 @@ export default function StoriesEditor({ profiles = [], onGenerate }) {
 
                 {/* Actions */}
                 <div className="stories-track__actions">
+                  <Menu
+                    placement="bottom-end"
+                    items={[
+                      ...(profiles.length === 0
+                        ? [{ id: 'noprof', label: 'No voice profiles installed', disabled: true }]
+                        : profiles.map(p => ({
+                            id: `voice-${p.id}`,
+                            label: p.name,
+                            onSelect: () => setVoiceForSelection(track.id, p.id),
+                          }))),
+                      'separator',
+                      { id: 'voice-default', label: 'Reset to track default', onSelect: () => setVoiceForSelection(track.id, 'default') },
+                    ]}
+                  >
+                    <button
+                      className="stories-track__btn"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Switch voice for the highlighted text (or insert a switch at the cursor)"
+                      aria-label="Set inline voice"
+                    >
+                      <Users size={12} />
+                    </button>
+                  </Menu>
                   <button
                     className="stories-track__btn"
                     onClick={(e) => { e.stopPropagation(); insertPauseInto(track.id); }}
