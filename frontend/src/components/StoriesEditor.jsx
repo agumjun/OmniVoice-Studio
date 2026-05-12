@@ -13,10 +13,41 @@
  *     onGenerate={(tracks) => ...}
  *   />
  */
-import React, { useState, useCallback } from 'react';
-import { Plus, Play, Trash2, GripVertical, BookOpen, Mic, Download } from 'lucide-react';
+import React, { useState, useCallback, useRef } from 'react';
+import { Plus, Play, Trash2, GripVertical, BookOpen, Mic, Download, Scissors, Pause as PauseIcon } from 'lucide-react';
 import { Button } from '@/ui';
 import './StoriesEditor.css';
+
+// Sentence-aware splitter for the "Paste & auto-split" panel. Walks the
+// text and breaks at the closest sentence boundary that keeps each chunk
+// under `maxChars`. Falls back to whitespace, then to the hard cap.
+function splitIntoChunks(text, maxChars) {
+  const out = [];
+  const clean = String(text || '').replace(/\r\n/g, '\n').trim();
+  if (!clean) return out;
+  const max = Math.max(40, Math.min(2000, maxChars | 0));
+  let i = 0;
+  while (i < clean.length) {
+    const remain = clean.length - i;
+    if (remain <= max) { out.push(clean.slice(i).trim()); break; }
+    const window = clean.slice(i, i + max);
+    // Prefer a sentence break inside the window, scanning from the end.
+    let cut = -1;
+    for (let j = window.length - 1; j > Math.floor(max * 0.4); j--) {
+      if (/[.!?。！？]/.test(window[j])) { cut = j + 1; break; }
+    }
+    if (cut < 0) {
+      // Fall back to last whitespace in the window.
+      for (let j = window.length - 1; j > Math.floor(max * 0.4); j--) {
+        if (/\s/.test(window[j])) { cut = j; break; }
+      }
+    }
+    if (cut < 0) cut = max;
+    out.push(clean.slice(i, i + cut).trim());
+    i += cut;
+  }
+  return out.filter(Boolean);
+}
 
 const CHARACTERS = [
   { id: 'narrator', label: 'Narrator', color: 'var(--color-accent)' },
@@ -50,6 +81,41 @@ export default function StoriesEditor({ profiles = [], onGenerate }) {
   ]);
 
   const [activeTrack, setActiveTrack] = useState(null);
+
+  // Paste & auto-split — paste a long passage, pick a chunk size, hit Split,
+  // and each chunk becomes its own track (assigned to Narrator by default).
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [splitText, setSplitText] = useState('');
+  const [splitMax, setSplitMax] = useState(180);
+  const trackTextRefs = useRef(new Map());
+
+  const applySplit = useCallback(() => {
+    const chunks = splitIntoChunks(splitText, splitMax);
+    if (!chunks.length) return;
+    setTracks(prev => [...prev, ...chunks.map(t => makeTrack('narrator', t))]);
+    setSplitText('');
+    setSplitOpen(false);
+  }, [splitText, splitMax]);
+
+  const insertPauseInto = useCallback((trackId) => {
+    const el = trackTextRefs.current.get(trackId);
+    const token = '[pause 0.5s]';
+    setTracks(prev => prev.map(t => {
+      if (t.id !== trackId) return t;
+      const pos = el?.selectionStart;
+      if (pos != null && pos >= 0 && pos <= t.text.length) {
+        const before = t.text.slice(0, pos);
+        const after = t.text.slice(pos);
+        // Insert with surrounding spaces if the neighbours are non-whitespace,
+        // so the token survives a future re-split.
+        const left = before.length && !/\s$/.test(before) ? `${before} ` : before;
+        const right = after.length && !/^\s/.test(after) ? ` ${after}` : after;
+        return { ...t, text: `${left}${token}${right}` };
+      }
+      const sep = t.text.length && !/\s$/.test(t.text) ? ' ' : '';
+      return { ...t, text: `${t.text}${sep}${token}` };
+    }));
+  }, []);
 
   const addTrack = useCallback(() => {
     setTracks(prev => [...prev, makeTrack()]);
@@ -131,6 +197,9 @@ export default function StoriesEditor({ profiles = [], onGenerate }) {
           </p>
         </div>
         <div className="stories-editor__actions">
+          <Button size="sm" variant="ghost" onClick={() => setSplitOpen(v => !v)} aria-label="Paste & split">
+            <Scissors size={13} /> Paste & Split
+          </Button>
           <Button size="sm" variant="ghost" onClick={addTrack} aria-label="Add track">
             <Plus size={13} /> Add Line
           </Button>
@@ -139,6 +208,42 @@ export default function StoriesEditor({ profiles = [], onGenerate }) {
           </Button>
         </div>
       </div>
+
+      {splitOpen && (
+        <div className="stories-editor__split-panel" role="region" aria-label="Paste long text and auto-split">
+          <textarea
+            className="stories-editor__split-text"
+            placeholder="Paste a long passage. We'll split it into segments at sentence boundaries."
+            value={splitText}
+            onChange={(e) => setSplitText(e.target.value)}
+            rows={6}
+            aria-label="Long-form text input"
+          />
+          <div className="stories-editor__split-controls">
+            <label className="stories-editor__split-label">
+              Max chars per segment
+              <input
+                type="number"
+                min={60}
+                max={1000}
+                step={10}
+                value={splitMax}
+                onChange={(e) => setSplitMax(parseInt(e.target.value, 10) || 180)}
+                className="stories-editor__split-num"
+              />
+            </label>
+            <span className="stories-editor__split-hint">
+              {splitText
+                ? `~${splitIntoChunks(splitText, splitMax).length} segment(s) at ${splitMax} chars`
+                : 'Paste text above'}
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => { setSplitText(''); setSplitOpen(false); }}>Cancel</Button>
+            <Button size="sm" onClick={applySplit} disabled={!splitText.trim()}>
+              <Scissors size={13} /> Split into tracks
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Tracks */}
       {tracks.length === 0 ? (
@@ -175,9 +280,13 @@ export default function StoriesEditor({ profiles = [], onGenerate }) {
                 {/* Text */}
                 <textarea
                   className="stories-track__text"
+                  ref={(el) => {
+                    if (el) trackTextRefs.current.set(track.id, el);
+                    else trackTextRefs.current.delete(track.id);
+                  }}
                   value={track.text}
                   onChange={(e) => updateTrack(track.id, 'text', e.target.value)}
-                  placeholder="Enter dialogue or narration..."
+                  placeholder="Enter dialogue or narration… use [pause 0.5s] to insert a silent break"
                   rows={1}
                   aria-label={`${char.label} text`}
                 />
@@ -216,6 +325,14 @@ export default function StoriesEditor({ profiles = [], onGenerate }) {
 
                 {/* Actions */}
                 <div className="stories-track__actions">
+                  <button
+                    className="stories-track__btn"
+                    onClick={(e) => { e.stopPropagation(); insertPauseInto(track.id); }}
+                    title="Insert a [pause 0.5s] break at the cursor"
+                    aria-label="Insert pause"
+                  >
+                    <PauseIcon size={12} />
+                  </button>
                   <button
                     className="stories-track__btn"
                     onClick={(e) => { e.stopPropagation(); previewTrack(track); }}
