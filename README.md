@@ -224,24 +224,49 @@ docker run -d --name omnivoice --gpus all \
   ghcr.io/debpalash/omnivoice-studio:latest
 ```
 
-**Or use Docker Compose:**
+**Or use Docker Compose (recommended):**
 
 ```bash
-# CPU
+# CPU mode
 docker compose -f deploy/docker-compose.yml --profile cpu up -d
 
-# GPU (NVIDIA)
+# GPU mode (NVIDIA)
 docker compose -f deploy/docker-compose.yml --profile gpu up -d
 ```
 
 Open [localhost:3900](http://localhost:3900) once the health check passes. First run downloads ~4 GB of model weights — progress in `docker compose logs -f`.
 
 <details>
+<summary><b>NVIDIA GPU setup prerequisites</b></summary>
+<br/>
+
+GPU mode requires the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html):
+
+```bash
+# Arch / CachyOS
+sudo pacman -S nvidia-container-toolkit
+
+# Ubuntu / Debian
+sudo apt-get install -y nvidia-container-toolkit
+
+# Then configure and restart Docker
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
+
+Verify with `docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi`.
+</details>
+
+<details>
 <summary><b>Build from source instead of pulling</b></summary>
 <br/>
 
 ```bash
-docker compose -f deploy/docker-compose.yml up --build -d
+# CPU
+docker compose -f deploy/docker-compose.yml --profile cpu up --build -d
+
+# GPU
+docker compose -f deploy/docker-compose.yml --profile gpu up --build -d
 ```
 
 </details>
