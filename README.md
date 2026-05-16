@@ -38,6 +38,14 @@
 > [!WARNING]
 > **OmniVoice Studio is in active beta.** Things may break between releases. For the latest features and fixes, clone the repo and run from source rather than using pre-built installers. Bug reports and PRs are very welcome — [open an issue](https://github.com/debpalash/OmniVoice-Studio/issues) or [join Discord](https://discord.gg/bzQavDfVV9).
 
+<div align="center">
+  <br/>
+  <a href="https://discord.gg/bzQavDfVV9"><img src="https://img.shields.io/badge/💬_Join_the_Community-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord" /></a>
+  <br/>
+  <sub>Get setup help · Share your dubs · Vote on the roadmap · Early access to new engines</sub>
+  <br/>
+</div>
+
 <br/>
 
 ## Features
@@ -370,6 +378,13 @@ ElevenLabs charges **$5–$330/mo** and processes your audio on their servers. O
 
 OmniVoice Studio gives you professional-grade AI tools without the subscription or the cloud.
 
+<div align="center">
+  <br/>
+  <b>Convinced? Come build with us.</b><br/>
+  <a href="https://discord.gg/bzQavDfVV9"><img src="https://img.shields.io/badge/Join_Discord-2,000+_members-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord" /></a>
+  <br/><br/>
+</div>
+
 ---
 
 ## System Requirements
@@ -449,6 +464,26 @@ OmniVoice ships a multi-engine TTS backend. The default engine (OmniVoice) is al
 - 📖 **Audiobook Editor** — chapter-aware long-form narration
 - 🌐 **Hosted Demo** — try OmniVoice without installing anything
 - 🔌 **Plugin Marketplace** — community-contributed TTS engines and effects
+
+---
+
+## Community
+
+<div align="center">
+  <a href="https://discord.gg/bzQavDfVV9"><img src="https://img.shields.io/badge/💬_Discord-Join_Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord" /></a>
+</div>
+
+<br/>
+
+| Channel | What happens there |
+|---------|--------------------|
+| `#showcase` | Members share their dubs, clones, and voice designs |
+| `#help` | Setup issues, GPU troubleshooting, model questions |
+| `#feature-requests` | Vote on what gets built next |
+| `#dev` | Architecture discussions, PR reviews, engine integrations |
+| `#announcements` | Release notes, breaking changes, early access |
+
+**[→ Join the Discord](https://discord.gg/bzQavDfVV9)** — we respond to setup questions within hours, not days.
 
 ---
 
@@ -535,7 +570,8 @@ OmniVoice Studio is built on the shoulders of exceptional open-source work:
 <br/>
 
 If you read this far, you're our kind of person.<br/>
-**[⭐ Star this repo](https://github.com/debpalash/OmniVoice-Studio)** so others can find it too.
+**[⭐ Star this repo](https://github.com/debpalash/OmniVoice-Studio)** so others can find it too.<br/>
+**[💬 Join the Discord](https://discord.gg/bzQavDfVV9)** to share what you build.
 
 <br/>
 
