@@ -164,20 +164,20 @@ All 11 open GitHub issues are closed or have a documented workaround surfaced in
 
 ## Coverage Summary
 
-**v1 requirements mapped:** 62 / 62 ✓
+**v1 requirements mapped:** 74 / 74 ✓ (updated 2026-05-18 — Phase 1 row corrected per checker B-3 to include INST-12 + AUTH-06; total now matches REQUIREMENTS.md 74)
 **Orphaned requirements:** 0 ✓
 **Duplicates:** 0 ✓
 
 | Phase | Requirement Count | Requirement IDs |
 |-------|-------------------|-----------------|
 | Phase 0 | 6 | GATE-01 — GATE-06 |
-| Phase 1 | 16 | INST-01 — INST-06, DOCS-01 — DOCS-05, AUTH-01 — AUTH-05 |
+| Phase 1 | 18 | INST-01 — INST-06, INST-12, DOCS-01 — DOCS-05, AUTH-01 — AUTH-06 |
 | Phase 2 | 8 | ENGINE-01 — ENGINE-07, BUG-01 |
 | Phase 3 | 11 | TTS-01 — TTS-06, INST-07 — INST-11 |
 | Phase 4 | 13 | SPIKE-01 — SPIKE-02, GGUF-01 — GGUF-06, SING-01 — SING-05 |
 | Phase 5 | 12 | REPORT-01 — REPORT-12 |
 | Phase 6 | 6 | REL-01 — REL-06 |
-| **Total** | **62** | — |
+| **Total** | **74** | — |
 
 ---
 

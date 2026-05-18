@@ -616,22 +616,29 @@ if __name__ == "__main__":
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All 5 open questions from initial research were resolved during planning. RESOLVED annotations added 2026-05-18 in revision pass 1 (checker W-6). Each points to the plan + task that locked the decision.
 
 1. **Where does `AppRun` actually live in this tree?** I couldn't find a `deploy/AppRun` or `frontend/src-tauri/*.AppImage*` artifact. The Tauri AppImage bundler typically generates AppRun at build time; conditional logic may need to be injected via `tauri.conf.json` `bundle.linux.appimage` or a `before-bundle` hook.
    - Recommendation: planner verifies via `cargo tauri build --bundles appimage --verbose` once, inspects generated artifact, decides between "patch generated AppRun" vs "use a custom AppRun template."
+   - **RESOLVED:** Plan 01-03 Task 1 owns this — a 30-minute spike runs `cargo tauri build --bundles appimage --verbose`, inspects the generated AppRun, and records the chosen strategy in `.planning/decisions/apprun-strategy.md`. Then ships `frontend/src-tauri/appimage/AppRun` with a sourceable `_detect_webkit_workaround` function and a shell unit test (`AppRun.test.sh`) covering 4 cases per checker W-1.
 
 2. **Does the project already have a `settings` SQLite table?** `backend/core/job_store.py` exists; not clear if a separate `settings` table is in scope or if we add it via `init_db()`.
    - Recommendation: planner reads `backend/core/job_store.py` and confirms schema. If `settings` exists, AUTH-02 is a column addition. If not, it's a table addition.
+   - **RESOLVED:** Plan 01-01 Task 1 — confirmed no `settings` table exists today. Adds the table via alembic migration `0001_phase1_settings_table.py` (real migration, not `init_db()` patch, because `alembic.ini` + `backend/migrations/` are already in the tree). `_BASE_SCHEMA` in `backend/core/db.py` ALSO defines the table guarded by `CREATE TABLE IF NOT EXISTS` for fresh-install convergence. Tests cover upgrade-on-v0.2.7-fixture-DB.
 
 3. **What is the canonical GitHub org+repo for docs URLs?** Code examples placeholder `<owner>/<repo>` — needs concrete value.
    - Recommendation: read from `pyproject.toml` `[project.urls]` at runtime in `error_docs_map.py`, fall back to hardcoded value.
+   - **RESOLVED:** Plan 01-02 Task 2 (per checker B-6 reassignment from Plan 01-01) — `backend/core/links.py` reads `frontend/src-tauri/tauri.conf.json` `plugins.updater.endpoints[0]` FIRST (preferred — points to the desktop app fork `github.com/debpalash/OmniVoice-Studio`), falls back to `pyproject.toml [project.urls].Repository` (which currently points to the upstream model repo `k2-fsa/OmniVoice` — wrong target for docs deeplinks, hence the precedence inversion). Tested via `tests/backend/core/test_links.py`.
 
 4. **Is `huggingface_hub.whoami()` synchronous or do we need an async wrapper?** Resolver `resolve()` calls it once per source; on app startup with 3 sources set, that's up to 3 network calls.
    - Recommendation: cache the resolver result for 5 minutes; expose `invalidate()` for "Test now" button. Don't call `whoami()` synchronously on every backend request.
+   - **RESOLVED:** Plan 01-01 Task 2 — `token_resolver.resolve()` caches result for 300 seconds keyed by `(source, sha256(token))`. `invalidate()` exposed for the Settings → API Keys "Test now" button. `save_app_token()` and `clear_app_token()` invalidate the cache on every write. The 3 network calls on first cold-start are accepted (one-time cost).
 
 5. **Does the AUTH-02 encryption need to survive an `omnivoice_data/` migration to a different machine?** A user backing up `omnivoice_data/` and restoring on a new machine would lose the App token if the key is machine-derived.
    - Recommendation: document that App tokens don't migrate across machines — user re-enters once. Env-var and HF-CLI sources cover the power-user migration path.
+   - **RESOLVED:** Plan 01-01 Task 1 + Plan 01-02 Task 1 Step 9 — `settings_store.get_hf_token()` catches `InvalidToken` from Fernet (the symptom of a machine-id mismatch after cross-machine restore), logs a warning, returns `None`. Caller falls through to env-var / HF-CLI sources naturally. Limitation documented in `docs/setup/huggingface-token.md` under "Setting via the app (recommended)" subsection. Power users use the env-var or HF-CLI source for cross-machine portability.
 
 ---
 
