@@ -231,6 +231,7 @@ from api.routers import (
     tts_stream,
     marketplace,
     sonitranslate,
+    settings as settings_router,  # Phase 1 AUTH-03: HF token save/clear/state
 )
 from utils import hf_progress
 
@@ -443,6 +444,7 @@ app.include_router(openai_compat.router)
 app.include_router(tts_stream.router)
 app.include_router(marketplace.router)
 app.include_router(sonitranslate.router)
+app.include_router(settings_router.router)  # Phase 1 AUTH-03 endpoints
 
 frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 if os.path.exists(frontend_path):
